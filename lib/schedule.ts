@@ -1,6 +1,6 @@
 import type { Slot } from './calc';
 
-export type WeekItem = { time: string; course: string; type: string };
+export type WeekItem = { time: string; course: string; index: number; type: string };
 export type WeekDay = { day: number; items: WeekItem[] };
 
 // The uni week starts on Saturday (0=Sun..6=Sat).
@@ -11,7 +11,7 @@ export function weekly(courses: { name: string; slots: Slot[] }[]): WeekDay[] {
   return WEEK_ORDER.map(day => ({
     day,
     items: courses
-      .flatMap(c => c.slots.filter(s => s.day === day).map(s => ({ time: s.time, course: c.name, type: s.type })))
+      .flatMap((c, index) => c.slots.filter(s => s.day === day).map(s => ({ time: s.time, course: c.name, index, type: s.type })))
       .sort((a, b) => a.time.localeCompare(b.time)),
   })).filter(d => d.items.length > 0);
 }

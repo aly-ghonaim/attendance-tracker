@@ -7,11 +7,11 @@ describe('weekly', () => {
 
   it('lists only days that have classes, in the uni week order (Sat first)', () =>
     expect(days.map(d => d.day)).toEqual([1, 2, 3, 4]));
-  it('sorts each day by start time and names the course', () =>
+  it('sorts each day by start time and names the course and its index', () =>
     expect(days[0].items).toEqual([
-      { time: '08:30', course: 'Cyber Security', type: 'lab' },
-      { time: '10:00', course: 'Cyber Security', type: 'lab' },
-      { time: '11:30', course: 'Database Systems', type: 'lab' },
+      { time: '08:30', course: 'Cyber Security', index: 2, type: 'lab' },
+      { time: '10:00', course: 'Cyber Security', index: 2, type: 'lab' },
+      { time: '11:30', course: 'Database Systems', index: 0, type: 'lab' },
     ]));
   it('keeps every weekly slot (12 in total)', () =>
     expect(days.reduce((n, d) => n + d.items.length, 0)).toBe(12));

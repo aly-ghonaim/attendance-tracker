@@ -52,3 +52,6 @@ export const status = (left: number): Status => (left < 0 ? 'barred' : left <= 1
 
 export const toggle = (list: string[], key: string): string[] =>
   list.includes(key) ? list.filter(k => k !== key) : [...list, key];
+
+// A course is as safe as its worst session type.
+export const worst = (groups: Group[]): Group => groups.reduce((a, g) => (g.left < a.left ? g : a));
