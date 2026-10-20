@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calc, sessions, status, toggle, type Course } from './calc';
+import { attendance, calc, sessions, status, toggle, type Course } from './calc';
 
 // 14 weeks Mon 2026-01-05 .. Sun 2026-04-12, lecture Mon + lab Wed
 const base: Course = {
@@ -59,4 +59,20 @@ describe('toggle', () => {
     expect(toggle(list, 'a')).toEqual([]);
     expect(list).toEqual(['a']);
   });
+});
+
+describe('attendance', () => {
+  // base: Mon lecture + Wed lab from 2026-01-05; by Mon 2026-01-12 three classes have happened (5, 7, 12 Jan).
+  const today = '2026-01-12';
+  it('counts classes held so far, not future ones', () => expect(attendance([base], today)).toEqual({ held: 3, attended: 3 }));
+  it('subtracts missed classes that have happened', () =>
+    expect(attendance([{ ...base, missed: ['2026-01-07|09:00|lab'] }], today)).toEqual({ held: 3, attended: 2 }));
+  it('ignores a miss marked on a future class', () =>
+    expect(attendance([{ ...base, missed: ['2026-01-14|09:00|lab'] }], today)).toEqual({ held: 3, attended: 3 }));
+  it('leaves cancelled classes out of both numbers', () =>
+    expect(attendance([{ ...base, cancelled: ['2026-01-05|09:00|lecture'], missed: ['2026-01-05|09:00|lecture'] }], today)).toEqual({ held: 2, attended: 2 }));
+  it('leaves holidays out', () =>
+    expect(attendance([{ ...base, holidays: [{ from: '2026-01-05', to: '2026-01-11' }] }], today)).toEqual({ held: 1, attended: 1 }));
+  it('adds up several courses', () => expect(attendance([base, base], today)).toEqual({ held: 6, attended: 6 }));
+  it('is 0 of 0 before the term starts', () => expect(attendance([base], '2025-12-01')).toEqual({ held: 0, attended: 0 }));
 });

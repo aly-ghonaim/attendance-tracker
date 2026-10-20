@@ -39,7 +39,7 @@ export default function Setup() {
 
   function confirm() {
     if (!draft) return;
-    save(fromExtraction(draft, saved?.defaultRate ?? 70));
+    save(fromExtraction(draft));
     router.push('/');
   }
 

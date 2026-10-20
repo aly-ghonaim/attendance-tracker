@@ -5,7 +5,7 @@ import type { Course } from './calc';
 import type { Extraction } from './extract';
 
 export type SavedCourse = Course & { name: string };
-export type Saved = { defaultRate: number; courses: SavedCourse[] };
+export type Saved = { courses: SavedCourse[] };
 
 const KEY = 'attendance-v2';
 const listeners = new Set<() => void>();
@@ -53,8 +53,7 @@ export function save(next: Saved) {
 export const updateCourse = (saved: Saved, index: number, patch: (c: SavedCourse) => SavedCourse) =>
   save({ ...saved, courses: saved.courses.map((c, i) => (i === index ? patch(c) : c)) });
 
-export const fromExtraction = (x: Extraction, defaultRate: number): Saved => ({
-  defaultRate,
+export const fromExtraction = (x: Extraction): Saved => ({
   courses: x.courses.map(c => ({
     name: c.name, slots: c.slots, rate: null, mode: 'all',
     start: x.start, classesEnd: x.classesEnd, holidays: x.holidays, missed: [], cancelled: [],

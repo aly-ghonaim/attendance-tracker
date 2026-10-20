@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { calc, fmt, sessions, status } from '@/lib/calc';
+import { calc, fmt, REQUIRED_RATE, sessions, status } from '@/lib/calc';
 import { updateCourse, useSaved, type SavedCourse } from '@/lib/store';
 import { dayLabel, SessionRow } from '../../session-row';
 import { card, MissBar, StatusPill } from '../../ui';
@@ -27,7 +27,7 @@ export default function CourseView({ index }: { index: number }) {
     );
 
   const edit = (patch: (c: SavedCourse) => SavedCourse) => updateCourse(saved, index, patch);
-  const groups = calc(course, saved.defaultRate);
+  const groups = calc(course, REQUIRED_RATE);
   const all = sessions(course);
   const today = fmt(new Date());
   const past = all.filter(s => s.date <= today);

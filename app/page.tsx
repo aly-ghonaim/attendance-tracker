@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { calc, fmt, status, worst } from '@/lib/calc';
+import { attendance, calc, fmt, REQUIRED_RATE, status, worst } from '@/lib/calc';
 import { pickWeek, weeks } from '@/lib/schedule';
 import { uelTerm1 } from '@/lib/sample';
 import { fromExtraction, save, updateCourse, useSaved, type SavedCourse } from '@/lib/store';
 import { dayLabel, SessionRow } from './session-row';
-import { card, field, ghostButton, primaryButton, statusStyle } from './ui';
+import { card, ghostButton, primaryButton, statusStyle } from './ui';
 
 const headerLink = 'flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-blue-600 hover:bg-blue-600/10 dark:text-blue-400';
 const arrow = 'flex size-11 items-center justify-center rounded-full text-xl hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/10';
@@ -27,7 +27,7 @@ export default function Home() {
             Upload your timetable and academic calendar. We work out how many classes you can still miss.
           </p>
         </div>
-        <button className={primaryButton} onClick={() => save(fromExtraction(uelTerm1, 70))}>
+        <button className={primaryButton} onClick={() => save(fromExtraction(uelTerm1))}>
           Load my UEL schedule
         </button>
         <Link href="/setup" className={`${ghostButton} flex items-center justify-center`}>
@@ -42,8 +42,12 @@ export default function Home() {
   const week = all[index];
 
   const counters = saved.courses
-    .map((course, i) => ({ course, i, groups: calc(course, saved.defaultRate) }))
+    .map((course, i) => ({ course, i, groups: calc(course, REQUIRED_RATE) }))
     .filter(c => c.groups.length > 0);
+  const { held, attended } = attendance(saved.courses, today);
+  const rate = held === 0 ? null : (attended / held) * 100;
+  // Courses have separate limits, so a course already over its limit adds nothing.
+  const missesLeft = counters.reduce((n, { groups }) => n + Math.max(0, worst(groups).left), 0);
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-12">
@@ -64,21 +68,24 @@ export default function Home() {
             </Link>
           );
         })}
-        <label className="mt-1 flex items-center justify-between gap-3 border-t border-zinc-100 pt-2 text-sm text-zinc-500 dark:border-zinc-800">
-          Required attendance
-          <span className="flex items-center gap-1">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={100}
-              className={`${field} w-20 text-right text-foreground`}
-              value={saved.defaultRate}
-              onChange={e => save({ ...saved, defaultRate: Math.min(100, Math.max(0, Number(e.target.value))) })}
-            />
-            %
-          </span>
-        </label>
+        <dl className="mt-1 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 text-center dark:border-zinc-800">
+          <div>
+            <dt className="text-xs text-zinc-500">Required</dt>
+            <dd className="text-lg font-semibold tabular-nums">{REQUIRED_RATE}%</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Your attendance</dt>
+            <dd
+              className={`text-lg font-semibold tabular-nums ${rate !== null && rate < REQUIRED_RATE ? 'text-red-600 dark:text-red-400' : ''}`}
+            >
+              {rate === null ? '—' : `${Math.round(rate)}%`}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Misses left</dt>
+            <dd className="text-lg font-semibold tabular-nums">{missesLeft}</dd>
+          </div>
+        </dl>
       </section>
 
       {week ? (

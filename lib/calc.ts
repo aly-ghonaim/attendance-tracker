@@ -55,3 +55,19 @@ export const toggle = (list: string[], key: string): string[] =>
 
 // A course is as safe as its worst session type.
 export const worst = (groups: Group[]): Group => groups.reduce((a, g) => (g.left < a.left ? g : a));
+
+// The uni's rule for every course; fixed on purpose, not user-editable.
+export const REQUIRED_RATE = 70;
+
+/** Classes held up to `today` across courses (cancelled and holiday classes excluded) and how many were attended. */
+export function attendance(courses: Course[], today: string): { held: number; attended: number } {
+  let held = 0;
+  let attended = 0;
+  for (const c of courses)
+    for (const s of sessions(c)) {
+      if (s.date > today || s.holiday || c.cancelled.includes(s.key)) continue;
+      held++;
+      if (!c.missed.includes(s.key)) attended++;
+    }
+  return { held, attended };
+}
