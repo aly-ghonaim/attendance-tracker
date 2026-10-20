@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { calc, status, type Group } from '@/lib/calc';
-import { save, useSaved } from '@/lib/store';
-import { card, field, MissBar, StatusPill } from './ui';
+import { uelTerm1 } from '@/lib/sample';
+import { fromExtraction, save, useSaved } from '@/lib/store';
+import { card, field, ghostButton, MissBar, primaryButton, StatusPill } from './ui';
 
 // A course is as safe as its worst session type.
 const worst = (groups: Group[]) => groups.reduce((a, g) => (g.left < a.left ? g : a));
@@ -21,8 +22,11 @@ export default function Home() {
             Upload your timetable and academic calendar. We work out how many classes you can still miss.
           </p>
         </div>
-        <Link href="/setup" className="flex min-h-12 items-center justify-center rounded-xl bg-blue-600 px-5 font-medium text-white hover:bg-blue-700">
-          Upload your schedule
+        <button className={primaryButton} onClick={() => save(fromExtraction(uelTerm1, 70))}>
+          Load my UEL schedule
+        </button>
+        <Link href="/setup" className={`${ghostButton} flex items-center justify-center`}>
+          Upload a different schedule
         </Link>
       </main>
     );
@@ -31,9 +35,14 @@ export default function Home() {
     <main className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-12">
       <header className="flex items-center justify-between pt-2">
         <h1 className="text-2xl font-semibold tracking-tight">Your courses</h1>
-        <Link href="/setup" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-blue-600 hover:bg-blue-600/10 dark:text-blue-400">
-          Replace schedule
-        </Link>
+        <div className="flex">
+          <Link href="/schedule" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-blue-600 hover:bg-blue-600/10 dark:text-blue-400">
+            Schedule
+          </Link>
+          <Link href="/setup" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-blue-600 hover:bg-blue-600/10 dark:text-blue-400">
+            Replace
+          </Link>
+        </div>
       </header>
 
       <label className={`${card} flex items-center justify-between gap-3`}>
