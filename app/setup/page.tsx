@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Extraction } from '@/lib/extract';
+import { uelTerm1 } from '@/lib/sample';
 import { fromExtraction, save, useSaved } from '@/lib/store';
 import { card, field, ghostButton, primaryButton } from '../ui';
 
@@ -78,6 +79,12 @@ export default function Setup() {
               {error}
             </p>
           )}
+          <div className="flex flex-col gap-1 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <button className={ghostButton} onClick={() => setDraft(uelTerm1)}>
+              Use the UEL Group 1 Term 1 schedule
+            </button>
+            <p className="text-center text-sm text-zinc-500">No upload needed. You can check and edit it before saving.</p>
+          </div>
         </section>
       )}
     </main>
