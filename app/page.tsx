@@ -81,12 +81,19 @@ export default function Home() {
       ) : (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-medium">{saved ? 'Replace schedule' : 'Upload your schedule and academic calendar'}</h2>
-          <input
-            type="file"
-            multiple
-            accept="application/pdf,image/png,image/jpeg,image/webp"
-            onChange={e => setFiles(Array.from(e.target.files ?? []))}
-          />
+          <label className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-zinc-400 p-8 text-center focus-within:ring-2 focus-within:ring-blue-500 hover:border-black dark:border-zinc-500 dark:hover:border-white">
+            <span className="text-base font-medium">Tap to choose your files</span>
+            <span className="text-sm text-zinc-500">
+              {files.length ? files.map(f => f.name).join(', ') : 'Timetable and academic calendar'}
+            </span>
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              accept="application/pdf,image/png,image/jpeg,image/webp"
+              onChange={e => setFiles(Array.from(e.target.files ?? []))}
+            />
+          </label>
           <p className="text-sm text-zinc-500">PDF, PNG, JPG or WebP, up to 4 MB in total.</p>
           <button className={primary} disabled={busy || files.length === 0} onClick={extract}>
             {busy ? 'Reading files…' : 'Extract'}

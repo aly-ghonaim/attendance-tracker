@@ -2,7 +2,9 @@ import { parseExtraction } from '@/lib/extract';
 
 export const maxDuration = 60;
 
-const MODEL = 'gemini-3.5-flash';
+// Newest first; overloaded (503) or rate-limited (429) models fall through to the next.
+const MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+const RETRYABLE = new Set([429, 500, 503]);
 const MAX_BYTES = 4_000_000; // Vercel rejects request bodies over 4.5 MB
 const MIME_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
 
@@ -56,17 +58,24 @@ export async function POST(request: Request) {
   for (const f of files)
     parts.push({ inlineData: { mimeType: f.type, data: Buffer.from(await f.arrayBuffer()).toString('base64') } });
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0 },
-    }),
+  const payload = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0 },
   });
-  if (!res.ok) {
-    console.error('Gemini error', res.status, await res.text());
-    return error('The AI service failed. Try again in a moment.', 502);
+  let res: Response | undefined;
+  for (const model of MODELS) {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: payload,
+      signal: AbortSignal.timeout(25_000),
+    }).catch(() => undefined);
+    if (res?.ok || (res && !RETRYABLE.has(res.status))) break;
+    console.error('Gemini', model, res?.status ?? 'network error/timeout', res ? await res.text() : '');
+  }
+  if (!res?.ok) {
+    if (res && !RETRYABLE.has(res.status)) console.error('Gemini error', res.status, await res.text());
+    return error('The AI service is busy right now. Wait a minute and press Extract again.', 503);
   }
 
   try {
