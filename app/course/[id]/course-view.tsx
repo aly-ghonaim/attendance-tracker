@@ -22,7 +22,7 @@ export default function CourseView({ index }: { index: number }) {
     return (
       <main className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
         <p>Course not found.</p>
-        <Link href="/courses" className="font-medium text-blue-600 dark:text-blue-400">Back to courses</Link>
+        <Link href="/" className="font-medium text-blue-600 dark:text-blue-400">Back</Link>
       </main>
     );
 
@@ -39,7 +39,7 @@ export default function CourseView({ index }: { index: number }) {
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-12">
       <header className="flex items-center gap-2 pt-2">
-        <Link href="/courses" aria-label="Back to courses" className="flex size-11 shrink-0 items-center justify-center rounded-full text-xl hover:bg-black/5 dark:hover:bg-white/10">
+        <Link href="/" aria-label="Back" className="flex size-11 shrink-0 items-center justify-center rounded-full text-xl hover:bg-black/5 dark:hover:bg-white/10">
           ←
         </Link>
         <h1 className="text-2xl font-semibold leading-tight tracking-tight">{course.name}</h1>

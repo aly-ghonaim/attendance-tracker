@@ -1,17 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { calc, status, worst } from '@/lib/calc';
-import { weekly } from '@/lib/schedule';
+import { useState } from 'react';
+import { calc, fmt, status, worst } from '@/lib/calc';
+import { pickWeek, weeks } from '@/lib/schedule';
 import { uelTerm1 } from '@/lib/sample';
-import { fromExtraction, save, useSaved } from '@/lib/store';
+import { fromExtraction, save, updateCourse, useSaved, type SavedCourse } from '@/lib/store';
+import { dayLabel, SessionRow } from './session-row';
 import { card, field, ghostButton, primaryButton, statusStyle } from './ui';
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const headerLink = 'flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-blue-600 hover:bg-blue-600/10 dark:text-blue-400';
+const arrow = 'flex size-11 items-center justify-center rounded-full text-xl hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/10';
+const short = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 export default function Home() {
   const saved = useSaved();
+  const [picked, setPicked] = useState<number | null>(null);
   if (saved === undefined) return null; // storage not read yet
 
   if (saved === null)
@@ -32,70 +36,87 @@ export default function Home() {
       </main>
     );
 
-  const days = weekly(saved.courses);
-  const today = new Date().getDay();
-  // Misses left per course, as its worst session type; null when it has no classes in range.
-  const left = saved.courses.map(c => {
-    const groups = calc(c, saved.defaultRate);
-    return groups.length ? worst(groups).left : null;
-  });
+  const today = fmt(new Date());
+  const all = weeks(saved.courses);
+  const index = Math.min(picked ?? pickWeek(all, today), all.length - 1);
+  const week = all[index];
+
+  const counters = saved.courses
+    .map((course, i) => ({ course, i, groups: calc(course, saved.defaultRate) }))
+    .filter(c => c.groups.length > 0);
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-12">
       <header className="flex items-center justify-between pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Your week</h1>
-        <div className="flex">
-          <Link href="/courses" className={headerLink}>By course</Link>
-          <Link href="/setup" className={headerLink}>Replace</Link>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Attendance</h1>
+        <Link href="/setup" className={headerLink}>Replace</Link>
       </header>
 
-      <label className={`${card} flex items-center justify-between gap-3`}>
-        <span className="text-sm font-medium">Required attendance</span>
-        <span className="flex items-center gap-1">
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={100}
-            className={`${field} w-20 text-right`}
-            value={saved.defaultRate}
-            onChange={e => save({ ...saved, defaultRate: Math.min(100, Math.max(0, Number(e.target.value))) })}
-          />
-          %
-        </span>
-      </label>
+      <section className={`${card} flex flex-col gap-1`}>
+        {counters.map(({ course, i, groups }) => {
+          const g = worst(groups);
+          return (
+            <Link key={i} href={`/course/${i}`} className="flex min-h-11 items-center justify-between gap-3">
+              <span className="font-medium leading-snug">{course.name}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${statusStyle(status(g.left)).pill}`}>
+                {g.left} left · {g.missed}/{g.allowed}
+              </span>
+            </Link>
+          );
+        })}
+        <label className="mt-1 flex items-center justify-between gap-3 border-t border-zinc-100 pt-2 text-sm text-zinc-500 dark:border-zinc-800">
+          Required attendance
+          <span className="flex items-center gap-1">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={100}
+              className={`${field} w-20 text-right text-foreground`}
+              value={saved.defaultRate}
+              onChange={e => save({ ...saved, defaultRate: Math.min(100, Math.max(0, Number(e.target.value))) })}
+            />
+            %
+          </span>
+        </label>
+      </section>
 
-      <ul className="flex flex-col gap-3">
-        {days.map(d => (
-          <li key={d.day}>
-            <Link href={`/day/${d.day}`} className={`${card} flex flex-col gap-1 transition-shadow hover:shadow-md`}>
-              <div className="flex items-center justify-between">
-                <b className="text-lg">{DAY_NAMES[d.day]}</b>
-                {d.day === today && (
-                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300">Today</span>
-                )}
+      {week ? (
+        <>
+          <nav className="flex items-center justify-between">
+            <button className={arrow} aria-label="Previous week" disabled={index === 0} onClick={() => setPicked(index - 1)}>←</button>
+            <div className="text-center">
+              <div className="font-semibold">Week {week.number}</div>
+              <div className="text-sm text-zinc-500">
+                {short(week.start)} – {short(week.days.at(-1)!.date)}
               </div>
-              <ul className="flex flex-col">
-                {d.items.map((it, i) => {
-                  const l = left[it.index];
-                  return (
-                    <li key={i} className="flex min-h-11 items-center gap-3 border-t border-zinc-100 first:border-t-0 dark:border-zinc-800">
-                      <span className="w-12 shrink-0 font-medium tabular-nums">{it.time}</span>
-                      <span className="flex-1 leading-snug">
-                        {it.course} <span className="text-sm capitalize text-zinc-500">· {it.type}</span>
-                      </span>
-                      {l !== null && (
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${statusStyle(status(l)).pill}`}>{l} left</span>
-                      )}
-                    </li>
-                  );
+            </div>
+            <button className={arrow} aria-label="Next week" disabled={index === all.length - 1} onClick={() => setPicked(index + 1)}>→</button>
+          </nav>
+
+          <p className="text-sm text-zinc-500">Tap a class you missed. Use Cancel if the uni cancelled it.</p>
+
+          {week.days.map(day => (
+            <section key={day.date} className="flex flex-col gap-2">
+              <h2 className="flex items-center gap-2 px-1 text-sm font-medium text-zinc-500">
+                {dayLabel(day.date)}
+                {day.date === today && (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-300">Today</span>
+                )}
+              </h2>
+              <ul className={`${card} flex flex-col p-0`}>
+                {day.items.map(({ s, i }) => {
+                  const course = saved.courses[i];
+                  const edit = (patch: (c: SavedCourse) => SavedCourse) => updateCourse(saved, i, patch);
+                  return <SessionRow key={`${i}|${s.key}`} s={s} course={course} edit={edit} title={course.name} subtitle={`${s.time} · ${s.type}`} />;
                 })}
               </ul>
-            </Link>
-          </li>
-        ))}
-      </ul>
+            </section>
+          ))}
+        </>
+      ) : (
+        <p className="text-zinc-500">No classes between the start and end dates. Check them in Replace.</p>
+      )}
     </main>
   );
 }
