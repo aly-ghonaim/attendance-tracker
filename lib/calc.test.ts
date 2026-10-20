@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calc, sessions, type Course } from './calc';
+import { calc, sessions, status, toggle, type Course } from './calc';
 
 // 14 weeks Mon 2026-01-05 .. Sun 2026-04-12, lecture Mon + lab Wed
 const base: Course = {
@@ -43,5 +43,20 @@ describe('calc', () => {
   it('ignores missed sessions that were cancelled', () => {
     const [k] = sessions(base).map(s => s.key);
     expect(calc({ ...base, cancelled: [k], missed: [k] }, 70)[0].missed).toBe(0);
+  });
+});
+
+describe('status', () => {
+  it('is safe with 2+ misses left, warning at 1 or 0, barred below 0', () => {
+    expect([status(5), status(2), status(1), status(0), status(-1)]).toEqual(['safe', 'safe', 'warning', 'warning', 'barred']);
+  });
+});
+
+describe('toggle', () => {
+  it('adds a missing key and removes a present one without mutating', () => {
+    const list = ['a'];
+    expect(toggle(list, 'b')).toEqual(['a', 'b']);
+    expect(toggle(list, 'a')).toEqual([]);
+    expect(list).toEqual(['a']);
   });
 });

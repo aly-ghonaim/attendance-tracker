@@ -14,7 +14,7 @@ export type Session = { date: string; time: string; type: string; key: string; h
 export type Group = { name: string; total: number; missed: number; allowed: number; left: number };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 // Every dated session implied by the weekly slots; holiday ones are flagged (a day off, not a cancellation) so the UI can label them.
 export function sessions(c: Course): Session[] {
@@ -44,3 +44,11 @@ export function calc(c: Course, defaultRate: number): Group[] {
     return { name, total: ss.length, missed, allowed, left: allowed - missed };
   });
 }
+
+export type Status = 'safe' | 'warning' | 'barred';
+
+// One miss from the limit is the warning zone; negative means the limit is exceeded.
+export const status = (left: number): Status => (left < 0 ? 'barred' : left <= 1 ? 'warning' : 'safe');
+
+export const toggle = (list: string[], key: string): string[] =>
+  list.includes(key) ? list.filter(k => k !== key) : [...list, key];
