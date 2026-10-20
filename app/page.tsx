@@ -44,8 +44,6 @@ export default function Home() {
   const counters = saved.courses
     .map((course, i) => ({ course, i, groups: calc(course, REQUIRED_RATE) }))
     .filter(c => c.groups.length > 0);
-  const { held, attended } = attendance(saved.courses, today);
-  const rate = held === 0 ? null : (attended / held) * 100;
   // Courses have separate limits, so a course already over its limit adds nothing.
   const missesLeft = counters.reduce((n, { groups }) => n + Math.max(0, worst(groups).left), 0);
 
@@ -59,27 +57,29 @@ export default function Home() {
       <section className={`${card} flex flex-col gap-1`}>
         {counters.map(({ course, i, groups }) => {
           const g = worst(groups);
+          const { held, attended } = attendance([course], today);
+          const rate = held === 0 ? null : (attended / held) * 100;
           return (
             <Link key={i} href={`/course/${i}`} className="flex min-h-11 items-center justify-between gap-3">
               <span className="font-medium leading-snug">{course.name}</span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${statusStyle(status(g.left)).pill}`}>
-                {g.left} left · {g.missed}/{g.allowed}
+              <span className="flex shrink-0 items-center gap-2">
+                <span
+                  aria-label="Attendance rate"
+                  className={`w-11 text-right font-semibold tabular-nums ${rate !== null && rate < REQUIRED_RATE ? 'text-red-600 dark:text-red-400' : ''}`}
+                >
+                  {rate === null ? '—' : `${Math.round(rate)}%`}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${statusStyle(status(g.left)).pill}`}>
+                  {g.left} left · {g.missed}/{g.allowed}
+                </span>
               </span>
             </Link>
           );
         })}
-        <dl className="mt-1 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 text-center dark:border-zinc-800">
+        <dl className="mt-1 grid grid-cols-2 gap-2 border-t border-zinc-100 pt-3 text-center dark:border-zinc-800">
           <div>
             <dt className="text-xs text-zinc-500">Required</dt>
             <dd className="text-lg font-semibold tabular-nums">{REQUIRED_RATE}%</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-zinc-500">Your attendance</dt>
-            <dd
-              className={`text-lg font-semibold tabular-nums ${rate !== null && rate < REQUIRED_RATE ? 'text-red-600 dark:text-red-400' : ''}`}
-            >
-              {rate === null ? '—' : `${Math.round(rate)}%`}
-            </dd>
           </div>
           <div>
             <dt className="text-xs text-zinc-500">Misses left</dt>
