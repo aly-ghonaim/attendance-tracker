@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attendance Tracker</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1a1a1a;--mut:#666;--card:#f3f4f6;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--line:#d1d5db}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--fg:#eee;--mut:#9aa0a6;--card:#1d222a;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--line:#374151}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:.5rem 0}h2{font-size:1.1rem;margin:1rem 0 .3rem}
+button,input,select{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px;box-sizing:border-box}
+button{cursor:pointer}button:disabled{opacity:.4}
+label{display:block;margin:.6rem 0;color:var(--mut)}label input,label select{display:block;width:100%;color:var(--fg);margin-top:4px}
+.card{background:var(--card);border-radius:12px;padding:14px;margin:10px 0;cursor:pointer}
+.row{margin-top:6px;font-weight:600;border-left:4px solid currentColor;padding-left:8px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+small{color:var(--mut);font-weight:400}
+ul{list-style:none;padding:0}
+li{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+li span{flex:1;font-size:.9rem}li.cx span{text-decoration:line-through;color:var(--mut)}li.miss span{color:var(--bad);font-weight:600}
+li button{padding:4px 8px;min-height:44px}
+.slot{display:flex;gap:6px;margin:6px 0}.slot>*{flex:1;min-width:0}.slot button{flex:0 0 44px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const KEY = 'attendance-v1';
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const empty = () => ({ defaultRate: 70, courses: [] });
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || empty(); } catch { return empty(); } };
+let db = load();
+let view = { name: 'home' };
+const save = () => localStorage.setItem(KEY, JSON.stringify(db));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// Every dated session implied by the weekly slots; nothing is stored, so edits to slots/dates just regenerate.
+function sessions(c) {
+  const out = [];
+  if (!c.start || !c.end) return out;
+  const [y, m, d] = c.start.split('-').map(Number);
+  for (let t = new Date(y, m - 1, d); fmt(t) <= c.end; t.setDate(t.getDate() + 1))
+    for (const s of c.slots)
+      if (+s.day === t.getDay()) out.push({ date: fmt(t), time: s.time, type: s.type, key: `${fmt(t)}|${s.time}|${s.type}` });
+  return out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+}
+
+// Integer maths on the percent avoids float error (e.g. 1 - 0.7). Missing exactly `allowed` is still OK.
+function calc(c, defaultRate) {
+  const pct = c.rate ?? defaultRate;
+  const groups = {};
+  for (const s of sessions(c)) {
+    if (c.cancelled.includes(s.key)) continue;
+    (groups[c.mode === 'type' ? s.type : 'All sessions'] ??= []).push(s);
+  }
+  return Object.entries(groups).map(([name, ss]) => {
+    const missed = ss.filter(s => c.missed.includes(s.key)).length;
+    const allowed = Math.floor(ss.length * (100 - pct) / 100);
+    return { name, total: ss.length, missed, allowed, left: allowed - missed };
+  });
+}
+
+// self-check: 14 weeks (Mon 2026-01-05 .. Sun 2026-04-12), 70%
+{
+  const c = { rate: null, mode: 'all', start: '2026-01-05', end: '2026-04-12', missed: [], cancelled: [],
+    slots: [{ day: 1, time: '09:00', type: 'lecture' }, { day: 3, time: '09:00', type: 'lab' }] };
+  const [g] = calc(c, 70);
+  console.assert(g.total === 28 && g.allowed === 8 && g.left === 8, 'combined 28 sessions -> 8 allowed', g);
+  const [g2] = calc({ ...c, cancelled: ['2026-01-05|09:00|lecture'] }, 70);
+  console.assert(g2.total === 27 && g2.allowed === 8, 'cancel removes from total', g2);
+  const gs = calc({ ...c, mode: 'type' }, 70);
+  console.assert(gs.length === 2 && gs.every(x => x.total === 14 && x.allowed === 4), 'separate types', gs);
+  console.assert(calc({ ...c, rate: 100 }, 70)[0].allowed === 0, 'rate 100 -> 0 allowed');
+}
+
+const status = left => left < 0 ? 'bad' : left <= 1 ? 'warn' : 'ok';
+const summary = gs => gs.map(g => `<div class="row ${status(g.left)}">${gs.length > 1 ? esc(g.name) + ': ' : ''}missed ${g.missed} of ${g.allowed} allowed (${g.total} total) · ${g.left < 0 ? 'BARRED, ' + -g.left + ' over' : g.left + ' left'}</div>`).join('')
+  || '<div class="row">No sessions: check the schedule and dates</div>';
+
+function home() {
+  return '<h1>Attendance</h1>' + db.courses.map(c =>
+    `<div class="card" data-open="${c.id}"><b>${esc(c.name)}</b> <small>${c.rate ?? db.defaultRate}% required</small>${summary(calc(c, db.defaultRate))}</div>`).join('')
+    + '<p><button data-act="new">+ Add course</button> <button data-act="settings">Settings</button></p>';
+}
+
+function form() {
+  const c = view.draft;
+  return `<h1>${view.isNew ? 'New' : 'Edit'} course</h1>
+<label>Name<input id="f-name" value="${esc(c.name)}"></label>
+<label>Required attendance % (blank = default ${db.defaultRate}%)<input id="f-rate" type="number" min="1" max="100" value="${c.rate ?? ''}"></label>
+<label>Counting<select id="f-mode"><option value="all">Lectures + labs together</option><option value="type"${c.mode === 'type' ? ' selected' : ''}>Each type separately</option></select></label>
+<label>Semester start<input id="f-start" type="date" value="${c.start}"></label>
+<label>Semester end<input id="f-end" type="date" value="${c.end}"></label>
+<h2>Weekly slots</h2>` + c.slots.map((s, i) => `<div class="slot">
+<select data-s="day">${DAYS.map((d, j) => `<option value="${j}"${+s.day === j ? ' selected' : ''}>${d}</option>`).join('')}</select>
+<input data-s="time" type="time" value="${esc(s.time)}">
+<input data-s="type" placeholder="lecture" value="${esc(s.type)}">
+<button data-act="rmslot" data-i="${i}" aria-label="Remove slot">✕</button></div>`).join('')
+    + `<p><button data-act="addslot">+ Slot</button></p>
+<p><button data-act="save">Save</button> <button data-act="${view.isNew ? 'home' : 'back'}">Cancel</button>${view.isNew ? '' : ' <button data-act="del">Delete course</button>'}</p>`;
+}
+
+function readForm() {
+  const c = view.draft, v = id => document.getElementById(id).value;
+  c.name = v('f-name').trim();
+  c.rate = v('f-rate') === '' ? null : +v('f-rate');
+  c.mode = v('f-mode'); c.start = v('f-start'); c.end = v('f-end');
+  c.slots = [...document.querySelectorAll('.slot')].map(r => ({
+    day: +r.querySelector('[data-s=day]').value,
+    time: r.querySelector('[data-s=time]').value,
+    type: r.querySelector('[data-s=type]').value.trim() || 'session',
+  }));
+}
+
+function detail() {
+  const c = db.courses.find(x => x.id === view.id), today = fmt(new Date());
+  return `<p><button data-act="home">← Back</button> <button data-act="edit">Edit</button></p><h1>${esc(c.name)}</h1>${summary(calc(c, db.defaultRate))}<ul>`
+    + sessions(c).map(s => {
+      const x = c.cancelled.includes(s.key), m = c.missed.includes(s.key);
+      return `<li class="${x ? 'cx' : m ? 'miss' : ''}"><span>${s.date} ${DAYS[new Date(s.date + 'T00:00').getDay()]} ${esc(s.time)} ${esc(s.type)}</span>`
+        + `<button data-act="miss" data-k="${esc(s.key)}"${s.date > today || x ? ' disabled' : ''}>${m ? 'Missed ✓' : 'Missed'}</button>`
+        + `<button data-act="cx" data-k="${esc(s.key)}">${x ? 'Restore' : 'Cancel'}</button></li>`;
+    }).join('') + '</ul>';
+}
+
+const settings = () => `<p><button data-act="home">← Back</button></p><h1>Settings</h1>
+<label>Default required attendance %<input id="dr" type="number" min="1" max="100" value="${db.defaultRate}"></label>
+<p><button data-act="export">Export backup</button></p>
+<label>Import backup (replaces all data)<input id="imp" type="file" accept=".json"></label>`;
+
+const app = document.getElementById('app');
+const render = () => { app.innerHTML = { home, form, detail, settings }[view.name](); };
+
+const toggle = (arr, k) => arr.includes(k) ? arr.filter(x => x !== k) : [...arr, k];
+const isCourse = c => c && typeof c.id === 'string' && ['missed', 'cancelled', 'slots'].every(f => Array.isArray(c[f]));
+
+app.onclick = e => {
+  const t = e.target.closest('[data-act],[data-open]');
+  if (!t) return;
+  const a = t.dataset.act, c = db.courses.find(x => x.id === (view.id ?? view.draft?.id));
+  if (t.dataset.open) view = { name: 'detail', id: t.dataset.open };
+  else if (a === 'home') view = { name: 'home' };
+  else if (a === 'back') view = { name: 'detail', id: view.draft.id };
+  else if (a === 'settings') view = { name: 'settings' };
+  else if (a === 'new') view = { name: 'form', isNew: true, draft: { id: Date.now().toString(36), name: '', rate: null, mode: 'all', start: '', end: '', slots: [{ day: 1, time: '09:00', type: 'lecture' }], missed: [], cancelled: [] } };
+  else if (a === 'edit') view = { name: 'form', draft: structuredClone(c) };
+  else if (a === 'addslot') { readForm(); view.draft.slots.push({ day: 1, time: '09:00', type: 'lecture' }); }
+  else if (a === 'rmslot') { readForm(); view.draft.slots.splice(+t.dataset.i, 1); }
+  else if (a === 'save') {
+    readForm();
+    const d = view.draft;
+    const err = !d.name ? 'Name is required'
+      : d.rate !== null && !(d.rate >= 1 && d.rate <= 100) ? 'Percent must be 1-100'
+      : !d.start || !d.end || d.start > d.end ? 'Set a valid start and end date'
+      : !d.slots.length || d.slots.some(s => !s.time) ? 'Add at least one slot with a time' : '';
+    if (err) return alert(err);
+    db.courses = view.isNew ? [...db.courses, d] : db.courses.map(x => x.id === d.id ? d : x);
+    save(); view = { name: 'detail', id: d.id };
+  }
+  else if (a === 'del') {
+    if (!confirm('Delete this course and its log?')) return;
+    db.courses = db.courses.filter(x => x.id !== view.draft.id); save(); view = { name: 'home' };
+  }
+  else if (a === 'miss' || a === 'cx') {
+    const f = a === 'miss' ? 'missed' : 'cancelled';
+    db.courses = db.courses.map(x => x.id === c.id ? { ...x, [f]: toggle(x[f], t.dataset.k) } : x); save();
+  }
+  else if (a === 'export') {
+    const l = document.createElement('a');
+    l.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type: 'application/json' }));
+    l.download = 'attendance-backup.json'; l.click(); return;
+  }
+  render();
+};
+
+app.onchange = async e => {
+  if (e.target.id === 'dr') {
+    const v = +e.target.value;
+    if (v >= 1 && v <= 100) { db = { ...db, defaultRate: v }; save(); } else e.target.value = db.defaultRate;
+  } else if (e.target.id === 'imp' && e.target.files[0]) {
+    try {
+      const d = JSON.parse(await e.target.files[0].text());
+      if (!(d.defaultRate >= 1 && d.defaultRate <= 100) || !Array.isArray(d.courses) || !d.courses.every(isCourse)) throw 0;
+      if (!confirm('Replace all current data with this backup?')) return;
+      db = d; save(); view = { name: 'home' }; render();
+    } catch { alert('Not a valid backup file'); }
+  }
+};
+
+render();
+</script>
+</body>
+</html>
